@@ -1,0 +1,1153 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Uptime Monitor</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --bg2: #161b27;
+    --bg3: #1e2535;
+    --border: #2a3148;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --green: #22c55e;
+    --red: #ef4444;
+    --yellow: #f59e0b;
+    --blue: #3b82f6;
+    --purple: #8b5cf6;
+    --green-bg: rgba(34,197,94,0.1);
+    --red-bg: rgba(239,68,68,0.1);
+    --yellow-bg: rgba(245,158,11,0.1);
+    --blue-bg: rgba(59,130,246,0.1);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; min-height: 100vh; }
+
+  /* Layout */
+  .sidebar { position: fixed; left: 0; top: 0; bottom: 0; width: 220px; background: var(--bg2); border-right: 1px solid var(--border); display: flex; flex-direction: column; z-index: 10; }
+  .main { margin-left: 220px; min-height: 100vh; }
+  .content { padding: 24px; max-width: 1200px; }
+
+  /* Sidebar */
+  .logo { padding: 20px; border-bottom: 1px solid var(--border); }
+  .logo h1 { font-size: 16px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 8px; }
+  .logo span { font-size: 20px; }
+  .nav { flex: 1; padding: 12px 0; }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 20px; cursor: pointer; font-size: 14px; color: var(--muted); transition: all 0.15s; border-left: 2px solid transparent; }
+  .nav-item:hover { background: var(--bg3); color: var(--text); }
+  .nav-item.active { background: var(--bg3); color: var(--blue); border-left-color: var(--blue); }
+  .nav-item svg { width: 16px; height: 16px; flex-shrink: 0; }
+  .sidebar-stats { padding: 16px 20px; border-top: 1px solid var(--border); }
+  .sidebar-stat { display: flex; justify-content: space-between; font-size: 12px; padding: 3px 0; }
+  .sidebar-stat span:first-child { color: var(--muted); }
+
+  /* Header */
+  .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+  .page-title { font-size: 22px; font-weight: 600; }
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg3); color: var(--text); font-size: 14px; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+  .btn:hover { background: var(--border); }
+  .btn-primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+  .btn-primary:hover { background: #2563eb; }
+  .btn-danger { background: var(--red-bg); border-color: var(--red); color: var(--red); }
+  .btn-danger:hover { background: rgba(239,68,68,0.2); }
+  .btn-sm { padding: 5px 10px; font-size: 12px; }
+
+  /* Stats cards */
+  .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
+  .stat-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+  .stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); margin-bottom: 8px; }
+  .stat-value { font-size: 28px; font-weight: 700; }
+  .stat-card.green .stat-value { color: var(--green); }
+  .stat-card.red .stat-value { color: var(--red); }
+  .stat-card.blue .stat-value { color: var(--blue); }
+  .stat-card.purple .stat-value { color: var(--purple); }
+
+  /* Monitor cards */
+  .monitors-list { display: flex; flex-direction: column; gap: 8px; }
+  .monitor-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 16px 20px; display: grid; grid-template-columns: 12px 1fr auto; align-items: center; gap: 16px; transition: border-color 0.2s; }
+  .monitor-card:hover { border-color: var(--blue); }
+  .monitor-card.up { border-left: 3px solid var(--green); }
+  .monitor-card.down { border-left: 3px solid var(--red); }
+  .monitor-card.unknown { border-left: 3px solid var(--muted); }
+  .status-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+  .status-dot.up { background: var(--green); box-shadow: 0 0 8px var(--green); }
+  .status-dot.down { background: var(--red); box-shadow: 0 0 8px var(--red); animation: pulse 1.5s infinite; }
+  .status-dot.unknown { background: var(--muted); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  .monitor-info { min-width: 0; }
+  .monitor-name { font-weight: 600; font-size: 15px; margin-bottom: 3px; }
+  .monitor-target { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .monitor-meta { display: flex; align-items: center; gap: 20px; }
+  .meta-item { text-align: center; min-width: 60px; }
+  .meta-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--muted); }
+  .meta-value { font-size: 14px; font-weight: 600; margin-top: 2px; }
+  .meta-value.green { color: var(--green); }
+  .meta-value.red { color: var(--red); }
+  .meta-value.yellow { color: var(--yellow); }
+  .badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+  .badge.up { background: var(--green-bg); color: var(--green); }
+  .badge.down { background: var(--red-bg); color: var(--red); }
+  .badge.unknown { background: rgba(100,116,139,0.1); color: var(--muted); }
+
+  .monitor-actions { display: flex; gap: 6px; }
+
+  /* Uptime bar */
+  .uptime-bar { display: flex; gap: 2px; margin-top: 8px; }
+  .uptime-tick { flex: 1; height: 6px; border-radius: 2px; background: var(--border); }
+  .uptime-tick.up { background: var(--green); }
+  .uptime-tick.down { background: var(--red); }
+
+  /* Modal */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 100; align-items: center; justify-content: center; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: var(--bg2); border: 1px solid var(--border); border-radius: 16px; padding: 28px; width: 100%; max-width: 500px; max-height: 90vh; overflow-y: auto; }
+  .modal h2 { font-size: 18px; margin-bottom: 20px; }
+  .form-group { margin-bottom: 16px; }
+  .form-group label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+  .form-control { width: 100%; background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; color: var(--text); font-size: 14px; outline: none; transition: border-color 0.15s; }
+  .form-control:focus { border-color: var(--blue); }
+  select.form-control option { background: var(--bg3); }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .form-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 4px; background: var(--bg3); border-radius: 10px; padding: 4px; margin-bottom: 24px; width: fit-content; }
+  .tab { padding: 7px 16px; border-radius: 7px; font-size: 14px; cursor: pointer; color: var(--muted); transition: all 0.15s; }
+  .tab.active { background: var(--bg2); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+
+  /* Config page */
+  .config-section { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+  .config-section h3 { font-size: 15px; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+  .numbers-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+  .number-item { display: flex; align-items: center; justify-content: space-between; background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; font-size: 14px; }
+
+  /* History chart */
+  .history-bar { height: 40px; display: flex; align-items: flex-end; gap: 1px; margin-top: 8px; }
+  .h-bar { flex: 1; background: var(--border); border-radius: 2px; min-height: 4px; max-height: 40px; position: relative; }
+  .h-bar.up { background: var(--green); opacity: 0.8; }
+  .h-bar.down { background: var(--red); }
+  .h-bar:hover { opacity: 1; }
+
+  /* Alert */
+  .alert { padding: 10px 16px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; }
+  .alert.success { background: var(--green-bg); color: var(--green); border: 1px solid rgba(34,197,94,0.2); }
+  .alert.error { background: var(--red-bg); color: var(--red); border: 1px solid rgba(239,68,68,0.2); }
+  .alert.info { background: var(--blue-bg); color: var(--blue); border: 1px solid rgba(59,130,246,0.2); }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .sidebar { width: 100%; height: auto; position: relative; }
+    .main { margin-left: 0; }
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    .monitor-meta { display: none; }
+  }
+
+
+  /* Toast */
+  .toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 999; display: flex; flex-direction: column; gap: 8px; }
+  .toast { background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; padding: 12px 18px; font-size: 13px; min-width: 240px; box-shadow: 0 4px 20px rgba(0,0,0,0.4); animation: slideIn 0.2s ease; display: flex; align-items: center; gap: 10px; }
+  .toast.success { border-color: var(--green); }
+  .toast.error { border-color: var(--red); }
+  .toast.info { border-color: var(--blue); }
+  @keyframes slideIn { from { opacity:0; transform: translateY(10px); } to { opacity:1; transform: translateY(0); } }
+
+  /* Confirm modal */
+  .confirm-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 200; align-items: center; justify-content: center; }
+  .confirm-overlay.open { display: flex; }
+  .confirm-box { background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; padding: 28px; width: 340px; text-align: center; }
+  .confirm-box h3 { font-size: 16px; margin-bottom: 8px; }
+  .confirm-box p { font-size: 13px; color: var(--muted); margin-bottom: 20px; }
+  .confirm-actions { display: flex; gap: 10px; justify-content: center; }
+
+  /* Empty state */
+  .empty { text-align: center; padding: 48px; color: var(--muted); }
+  .empty svg { opacity: 0.3; margin-bottom: 12px; }
+  .empty p { font-size: 15px; }
+
+  /* Detail panel */
+  .detail-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 100; align-items: flex-start; justify-content: flex-end; }
+  .detail-overlay.open { display: flex; }
+  .detail-panel { background: var(--bg2); width: 400px; height: 100vh; overflow-y: auto; padding: 24px; border-left: 1px solid var(--border); }
+  .detail-panel h2 { font-size: 18px; margin-bottom: 4px; }
+  .detail-close { float: right; cursor: pointer; color: var(--muted); font-size: 20px; line-height: 1; }
+  .detail-section { margin-top: 20px; }
+  .detail-section h4 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); margin-bottom: 10px; }
+  .log-item { font-size: 12px; padding: 6px 0; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
+  .log-item:last-child { border-bottom: none; }
+
+  /* ─── Auth overlays ─── */
+  .auth-overlay {
+    position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
+    background: rgba(8, 10, 16, 0.92); z-index: 9000; padding: 20px;
+  }
+  .auth-overlay.open { display: flex; }
+  .auth-card {
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 14px;
+    padding: 28px; width: 100%; max-width: 420px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  }
+  .auth-card h2 { margin: 0 0 4px; font-size: 22px; }
+  .auth-card .auth-subtitle { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+  .auth-card .form-group { margin-bottom: 14px; }
+  .auth-card .auth-error {
+    background: rgba(229, 62, 62, 0.12); color: #ff8080; border: 1px solid rgba(229,62,62,0.3);
+    padding: 10px 12px; border-radius: 8px; font-size: 13px; margin-bottom: 14px; display: none;
+  }
+  .auth-card .auth-error.open { display: block; }
+  .auth-card .btn-primary { width: 100%; justify-content: center; }
+  .auth-card .auth-hint { color: var(--muted); font-size: 12px; margin-top: 14px; text-align: center; }
+  /* User area na sidebar */
+  .user-area {
+    margin-top: auto; padding: 14px 16px; border-top: 1px solid var(--border);
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .user-area .user-line {
+    display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px;
+  }
+  .user-area .user-line strong { color: var(--text); }
+  .user-area .user-actions { display: flex; gap: 6px; }
+  .user-area .user-actions button {
+    flex: 1; background: transparent; border: 1px solid var(--border); color: var(--text);
+    padding: 6px 8px; font-size: 12px; border-radius: 6px; cursor: pointer;
+  }
+  .user-area .user-actions button:hover { background: rgba(255,255,255,0.04); }
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <div class="logo">
+    <h1><span>📡</span> Uptime Monitor</h1>
+  </div>
+  <nav class="nav">
+    <div class="nav-item active" onclick="showPage('dashboard')" id="nav-dashboard">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      Dashboard
+    </div>
+    <div class="nav-item" onclick="showPage('monitors')" id="nav-monitors">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      Monitores
+    </div>
+    <div class="nav-item" onclick="showPage('config')" id="nav-config">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+      Configurações
+    </div>
+  </nav>
+  <div class="sidebar-stats" id="sidebar-stats"></div>
+  <div class="user-area" id="user-area" style="display:none">
+    <div class="user-line">
+      <span>👤</span>
+      <strong id="user-name">—</strong>
+    </div>
+    <div class="user-actions">
+      <button type="button" onclick="openChangePassword()">Alterar senha</button>
+      <button type="button" onclick="doLogout()">Sair</button>
+    </div>
+  </div>
+</div>
+
+<div class="main">
+  <div class="content">
+    <!-- Dashboard -->
+    <div id="page-dashboard">
+      <div class="page-header">
+        <div class="page-title">Dashboard</div>
+        <button class="btn btn-primary" onclick="openAddModal()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Novo Monitor
+        </button>
+      </div>
+      <div class="stats-grid" id="stats-grid"></div>
+      <div class="monitors-list" id="monitors-list"></div>
+    </div>
+
+    <!-- Monitores (alias) -->
+    <div id="page-monitors" style="display:none">
+      <div class="page-header">
+        <div class="page-title">Monitores</div>
+        <button class="btn btn-primary" onclick="openAddModal()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Novo Monitor
+        </button>
+      </div>
+      <div class="monitors-list" id="monitors-list-2"></div>
+    </div>
+
+    <!-- Config -->
+    <div id="page-config" style="display:none">
+      <div class="page-header">
+        <div class="page-title">Configurações</div>
+      </div>
+      <div id="config-alert"></div>
+
+      <div class="config-section">
+        <h3>📱 Evolution API — WhatsApp</h3>
+        <div class="form-group">
+          <label>URL da API</label>
+          <input id="cfg-api-url" class="form-control" placeholder="https://sua-evolution-api.com" />
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Instância</label>
+            <input id="cfg-instance" class="form-control" placeholder="minha-instancia" />
+          </div>
+          <div class="form-group">
+            <label>API Key</label>
+            <input id="cfg-apikey" class="form-control" type="password" placeholder="••••••••" />
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="saveConfig()">Salvar Configuração</button>
+      </div>
+
+      <div class="config-section">
+        <h3>📞 Números para Notificação</h3>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:12px">Números que receberão alertas quando um serviço cair ou voltar. Formato: somente dígitos com DDD (ex: 11999990000)</p>
+        <div class="numbers-list" id="numbers-list"></div>
+        <div style="display:flex;gap:8px">
+          <input id="new-number" class="form-control" placeholder="11999990000" style="flex:1" onkeydown="if(event.key==='Enter')addNumber()" />
+          <button class="btn btn-primary" onclick="addNumber()">Adicionar</button>
+        </div>
+      </div>
+
+      <div class="config-section">
+        <h3>✈️ Telegram Bot</h3>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:12px">Configure um bot para receber alertas. <a href="https://t.me/BotFather" target="_blank" style="color:var(--blue)">Crie seu bot no BotFather</a> e cole o token abaixo.</p>
+        <div class="form-group">
+          <label>Token do Bot</label>
+          <input id="cfg-tg-token" class="form-control" type="password" placeholder="123456789:AAF..." />
+        </div>
+        <button class="btn btn-primary" onclick="saveTelegramConfig()">Salvar Token</button>
+        <div style="margin-top:20px">
+          <h3 style="font-size:14px;font-weight:600;margin-bottom:6px">💬 Chat IDs para Notificação</h3>
+          <p style="font-size:13px;color:var(--muted);margin-bottom:10px">Adicione os Chat IDs que receberão alertas. Para obter o seu, envie uma mensagem para o bot e acesse <code style="background:var(--bg3);padding:2px 6px;border-radius:4px;font-size:11px">api.telegram.org/bot{TOKEN}/getUpdates</code></p>
+          <div class="numbers-list" id="tg-chatids-list"></div>
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <input id="new-chatid" class="form-control" placeholder="ex: -1001234567890" style="flex:1" onkeydown="if(event.key==='Enter')addChatId()" />
+            <button class="btn btn-primary" onclick="addChatId()">Adicionar</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="config-section">
+        <h3>🧪 Testar Notificação</h3>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:12px">Envie uma mensagem de teste para verificar se as integrações estão funcionando.</p>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:6px">📱 WhatsApp</p>
+        <div style="display:flex;gap:8px;margin-bottom:8px">
+          <input id="test-number" class="form-control" placeholder="11999990000" style="flex:1" />
+          <button class="btn" onclick="testWhatsApp()">Enviar Teste</button>
+        </div>
+        <div id="test-result" style="margin-bottom:14px"></div>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:6px">✈️ Telegram</p>
+        <div style="display:flex;gap:8px">
+          <input id="test-chatid" class="form-control" placeholder="Chat ID" style="flex:1" />
+          <button class="btn" onclick="testTelegram()">Enviar Teste</button>
+        </div>
+        <div id="test-tg-result" style="margin-top:8px"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Add/Edit -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <h2 id="modal-title">Novo Monitor</h2>
+    <div id="modal-alert"></div>
+    <div class="form-group">
+      <label>Nome</label>
+      <input id="m-name" class="form-control" placeholder="Meu servidor web" />
+    </div>
+    <div class="form-group">
+      <label>Tipo de monitoramento</label>
+      <select id="m-type" class="form-control" onchange="toggleType()">
+        <option value="http">HTTP / HTTPS (URL)</option>
+        <option value="tcp">TCP / Porta</option>
+      </select>
+    </div>
+    <div id="field-url" class="form-group">
+      <label>URL</label>
+      <input id="m-url" class="form-control" placeholder="https://exemplo.com" />
+    </div>
+    <div id="field-host" class="form-group" style="display:none">
+      <label>Host / IP</label>
+      <input id="m-host" class="form-control" placeholder="192.168.1.1 ou meuservidor.com" />
+    </div>
+    <div id="field-port" class="form-group" style="display:none">
+      <label>Porta</label>
+      <input id="m-port" class="form-control" type="number" placeholder="80" />
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Intervalo (segundos)</label>
+        <select id="m-interval" class="form-control">
+          <option value="5">5 segundos</option>
+          <option value="30">30 segundos</option>
+          <option value="60" selected>1 minuto</option>
+          <option value="120">2 minutos</option>
+          <option value="300">5 minutos</option>
+          <option value="600">10 minutos</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Timeout (ms)</label>
+        <input id="m-timeout" class="form-control" type="number" value="10000" />
+      </div>
+    </div>
+    <div id="field-expected" class="form-group">
+      <label>Status HTTP esperado (deixe vazio para qualquer 2xx/3xx)</label>
+      <input id="m-expected" class="form-control" type="number" placeholder="200" />
+    </div>
+    <div class="form-actions">
+      <button class="btn" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveMonitor()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Detail Panel -->
+<div class="detail-overlay" id="detail-overlay" onclick="closeDetail(event)">
+  <div class="detail-panel" id="detail-panel">
+    <span class="detail-close" onclick="closeDetail()">&times;</span>
+    <div id="detail-content"></div>
+  </div>
+</div>
+
+<script>
+let monitors = [];
+let editingId = null;
+
+// ─── Navegação ────────────────────────────────────────────────────────────────
+
+function showPage(page) {
+  ['dashboard','monitors','config'].forEach(p => {
+    document.getElementById(`page-${p}`).style.display = p === page ? '' : 'none';
+    document.getElementById(`nav-${p}`).classList.toggle('active', p === page);
+  });
+  if (page === 'config') loadConfig();
+}
+
+// ─── Fetch helpers ────────────────────────────────────────────────────────────
+
+async function api(method, path, body) {
+  const r = await fetch(path, {
+    method,
+    headers: body ? { 'Content-Type': 'application/json' } : {},
+    body: body ? JSON.stringify(body) : undefined,
+    credentials: 'same-origin'
+  });
+  // Sessão expirou ou nunca existiu → volta pro login (exceto nas rotas de auth)
+  if (r.status === 401 && !path.startsWith('/api/auth/')) {
+    handleSessionExpired();
+    throw new Error('Sessão expirada');
+  }
+  const text = await r.text();
+  try {
+    const data = text ? JSON.parse(text) : {};
+    if (!r.ok) throw new Error(data.error || `Erro ${r.status}`);
+    return data;
+  } catch (e) {
+    if (!r.ok) throw new Error(`Erro ${r.status}: ${r.statusText}`);
+    if (e instanceof SyntaxError) throw new Error('Resposta inválida do servidor');
+    throw e;
+  }
+}
+
+// ─── Auth ─────────────────────────────────────────────────────────────────────
+
+let refreshTimer = null;
+
+function stopRefreshLoop() {
+  if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
+}
+
+function showOverlay(id) {
+  ['setup-overlay', 'login-overlay', 'change-password-overlay'].forEach(o => {
+    document.getElementById(o).classList.toggle('open', o === id);
+  });
+}
+
+function hideAllOverlays() {
+  ['setup-overlay', 'login-overlay', 'change-password-overlay'].forEach(o => {
+    document.getElementById(o).classList.remove('open');
+  });
+}
+
+function showAuthError(elId, msg) {
+  const el = document.getElementById(elId);
+  el.textContent = msg;
+  el.classList.add('open');
+}
+
+function clearAuthError(elId) {
+  const el = document.getElementById(elId);
+  el.textContent = '';
+  el.classList.remove('open');
+}
+
+function handleSessionExpired() {
+  stopRefreshLoop();
+  document.getElementById('user-area').style.display = 'none';
+  showOverlay('login-overlay');
+}
+
+async function checkAuthStatus() {
+  const r = await fetch('/api/auth/status', { credentials: 'same-origin' });
+  if (!r.ok) throw new Error('Falha ao consultar status de autenticação');
+  return r.json();
+}
+
+async function doSetup() {
+  clearAuthError('setup-error');
+  const username = document.getElementById('setup-username').value.trim();
+  const password = document.getElementById('setup-password').value;
+  const password2 = document.getElementById('setup-password2').value;
+  if (password !== password2) return showAuthError('setup-error', 'As senhas não coincidem.');
+  if (password.length < 8) return showAuthError('setup-error', 'Senha deve ter no mínimo 8 caracteres.');
+  try {
+    const r = await fetch('/api/auth/setup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) return showAuthError('setup-error', data.error || 'Falha no setup');
+    // Setup ok → mostra login já preenchendo o usuário
+    document.getElementById('login-username').value = username;
+    document.getElementById('setup-password').value = '';
+    document.getElementById('setup-password2').value = '';
+    showOverlay('login-overlay');
+  } catch (e) {
+    showAuthError('setup-error', e.message || 'Erro inesperado');
+  }
+}
+
+async function doLogin() {
+  clearAuthError('login-error');
+  const username = document.getElementById('login-username').value.trim();
+  const password = document.getElementById('login-password').value;
+  try {
+    const r = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({ username, password })
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) return showAuthError('login-error', data.error || `Erro ${r.status}`);
+    document.getElementById('login-password').value = '';
+    hideAllOverlays();
+    await startApp(data.username || username);
+  } catch (e) {
+    showAuthError('login-error', e.message || 'Erro inesperado');
+  }
+}
+
+async function doLogout() {
+  try {
+    await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' });
+  } catch (e) { /* ignore */ }
+  handleSessionExpired();
+}
+
+function openChangePassword() {
+  clearAuthError('change-password-error');
+  document.getElementById('cp-current').value = '';
+  document.getElementById('cp-new').value = '';
+  document.getElementById('cp-new2').value = '';
+  showOverlay('change-password-overlay');
+}
+
+function closeChangePassword() {
+  document.getElementById('change-password-overlay').classList.remove('open');
+}
+
+async function doChangePassword() {
+  clearAuthError('change-password-error');
+  const currentPassword = document.getElementById('cp-current').value;
+  const newPassword = document.getElementById('cp-new').value;
+  const newPassword2 = document.getElementById('cp-new2').value;
+  if (newPassword !== newPassword2) return showAuthError('change-password-error', 'As novas senhas não coincidem.');
+  if (newPassword.length < 8) return showAuthError('change-password-error', 'Senha deve ter no mínimo 8 caracteres.');
+  try {
+    const r = await fetch('/api/auth/change-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({ currentPassword, newPassword })
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) return showAuthError('change-password-error', data.error || `Erro ${r.status}`);
+    closeChangePassword();
+    showToast('Senha alterada com sucesso', 'success');
+  } catch (e) {
+    showAuthError('change-password-error', e.message || 'Erro inesperado');
+  }
+}
+
+async function startApp(username) {
+  document.getElementById('user-name').textContent = username || 'admin';
+  document.getElementById('user-area').style.display = '';
+  await refresh();
+  stopRefreshLoop();
+  refreshTimer = setInterval(refresh, 15000);
+}
+
+async function bootstrap() {
+  try {
+    const st = await checkAuthStatus();
+    if (!st.setupComplete) {
+      showOverlay('setup-overlay');
+      return;
+    }
+    if (!st.authenticated) {
+      if (st.configuredUsername) {
+        document.getElementById('login-username').value = st.configuredUsername;
+      }
+      showOverlay('login-overlay');
+      return;
+    }
+    await startApp(st.username);
+  } catch (e) {
+    console.error('Bootstrap falhou:', e);
+    showAuthError('login-error', 'Falha ao conectar ao servidor. Tente recarregar.');
+    showOverlay('login-overlay');
+  }
+}
+
+// ─── Toast ────────────────────────────────────────────────────────────────────
+
+function showToast(msg, type = 'info', duration = 3500) {
+  const container = document.getElementById('toast-container');
+  const icons = { success: '✅', error: '❌', info: 'ℹ️' };
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.innerHTML = `<span>${icons[type] || ''}</span><span>${msg}</span>`;
+  container.appendChild(el);
+  setTimeout(() => el.remove(), duration);
+}
+
+// ─── Confirm modal ────────────────────────────────────────────────────────────
+
+let _confirmResolve = null;
+
+function showConfirm(title, msg, okLabel = 'Remover') {
+  document.getElementById('confirm-title').textContent = title;
+  document.getElementById('confirm-msg').textContent = msg;
+  document.getElementById('confirm-ok').textContent = okLabel;
+  document.getElementById('confirm-overlay').classList.add('open');
+  return new Promise(resolve => { _confirmResolve = resolve; });
+}
+
+function resolveConfirm(val) {
+  document.getElementById('confirm-overlay').classList.remove('open');
+  if (_confirmResolve) { _confirmResolve(val); _confirmResolve = null; }
+}
+
+// ─── Dashboard ────────────────────────────────────────────────────────────────
+
+async function refresh() {
+  try {
+    const [data, stats] = await Promise.all([
+      api('GET', '/api/monitors'),
+      api('GET', '/api/stats')
+    ]);
+    monitors = data;
+    renderStats(stats);
+    renderMonitors('monitors-list', monitors);
+    renderMonitors('monitors-list-2', monitors);
+    renderSidebarStats(stats);
+  } catch (e) {
+    console.warn('Erro ao atualizar:', e.message);
+  }
+}
+
+function renderStats(s) {
+  const g = document.getElementById('stats-grid');
+  g.innerHTML = `
+    <div class="stat-card blue"><div class="stat-label">Total</div><div class="stat-value" style="color:var(--blue)">${s.total}</div></div>
+    <div class="stat-card green"><div class="stat-label">Online</div><div class="stat-value" style="color:var(--green)">${s.up}</div></div>
+    <div class="stat-card red"><div class="stat-label">Offline</div><div class="stat-value" style="color:var(--red)">${s.down}</div></div>
+    <div class="stat-card purple"><div class="stat-label">Sem verificar</div><div class="stat-value" style="color:var(--purple)">${s.unchecked}</div></div>
+  `;
+}
+
+function renderSidebarStats(s) {
+  const el = document.getElementById('sidebar-stats');
+  const upPct = s.active ? Math.round(s.up / Math.max(s.active,1) * 100) : 0;
+  el.innerHTML = `
+    <div class="sidebar-stat"><span>Total</span><span>${s.total}</span></div>
+    <div class="sidebar-stat"><span style="color:var(--green)">Online</span><span style="color:var(--green)">${s.up}</span></div>
+    <div class="sidebar-stat"><span style="color:var(--red)">Offline</span><span style="color:var(--red)">${s.down}</span></div>
+    <div class="sidebar-stat"><span>Disponibilidade</span><span>${upPct}%</span></div>
+  `;
+}
+
+function renderMonitors(containerId, list) {
+  const el = document.getElementById(containerId);
+  if (!list.length) {
+    el.innerHTML = `<div class="empty"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2z"/><path d="M12 8v4M12 16h.01"/></svg><p>Nenhum monitor cadastrado.<br>Clique em <strong>Novo Monitor</strong> para começar.</p></div>`;
+    return;
+  }
+  el.innerHTML = list.map(m => {
+    const s = m.status;
+    const state = !s ? 'unknown' : s.up ? 'up' : 'down';
+    const badge = !s ? 'Aguardando' : s.up ? 'Online' : 'Offline';
+    const latency = s?.latency ? `${s.latency}ms` : '—';
+    const uptime = m.uptime24h !== null ? `${m.uptime24h}%` : '—';
+    const uptime7 = m.uptime7d !== null ? `${m.uptime7d}%` : '—';
+    const target = m.type === 'tcp' ? `${m.host}:${m.port}` : (m.url || '—');
+    const checkedAgo = s?.checkedAt ? timeAgo(s.checkedAt) : 'Nunca';
+    const latClass = !s?.latency ? '' : s.latency < 200 ? 'green' : s.latency < 800 ? 'yellow' : 'red';
+
+    return `
+      <div class="monitor-card ${state}" onclick="showDetail('${m.id}')">
+        <div class="status-dot ${state}"></div>
+        <div class="monitor-info">
+          <div class="monitor-name">${escHtml(m.name)}</div>
+          <div class="monitor-target">${escHtml(target)} · <span class="badge ${state}">${badge}</span> · ${checkedAgo}</div>
+        </div>
+        <div class="monitor-meta">
+          <div class="meta-item">
+            <div class="meta-label">Latência</div>
+            <div class="meta-value ${latClass}">${latency}</div>
+          </div>
+          <div class="meta-item">
+            <div class="meta-label">24h uptime</div>
+            <div class="meta-value ${uptime !== '—' ? (parseFloat(uptime) >= 99 ? 'green' : parseFloat(uptime) >= 95 ? 'yellow' : 'red') : ''}">${uptime}</div>
+          </div>
+          <div class="meta-item">
+            <div class="meta-label">7d uptime</div>
+            <div class="meta-value ${uptime7 !== '—' ? (parseFloat(uptime7) >= 99 ? 'green' : parseFloat(uptime7) >= 95 ? 'yellow' : 'red') : ''}">${uptime7}</div>
+          </div>
+          <div class="monitor-actions" onclick="event.stopPropagation()">
+            <button class="btn btn-sm" onclick="forceCheck('${m.id}')" title="Verificar agora">↻</button>
+            <button class="btn btn-sm" onclick="editMonitor('${m.id}')" title="Editar">✏️</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteMonitor('${m.id}')" title="Remover">🗑</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// ─── Detail Panel ─────────────────────────────────────────────────────────────
+
+async function showDetail(id) {
+  const m = monitors.find(x => x.id === id);
+  if (!m) return;
+  const hist = await api('GET', `/api/monitors/${id}/history?limit=50`);
+  const s = m.status;
+  const state = !s ? 'unknown' : s.up ? 'up' : 'down';
+  const target = m.type === 'tcp' ? `${m.host}:${m.port}` : (m.url || '—');
+
+  const recent = hist.slice(-40);
+  const bars = recent.map(r => {
+    const h = r.latency ? Math.min(40, Math.max(6, Math.round(r.latency / 20))) : 6;
+    return `<div class="h-bar ${r.up ? 'up' : 'down'}" style="height:${h}px" title="${r.up ? 'Online' : 'Offline'} – ${r.latency ? r.latency+'ms' : 'n/a'} – ${new Date(r.checkedAt).toLocaleString('pt-BR')}"></div>`;
+  }).join('');
+
+  document.getElementById('detail-content').innerHTML = `
+    <h2>${escHtml(m.name)}</h2>
+    <div style="color:var(--muted);font-size:13px;margin-bottom:16px">${escHtml(target)}</div>
+    <span class="badge ${state}" style="font-size:13px;padding:4px 12px">${!s ? 'Aguardando' : s.up ? 'Online' : 'Offline'}</span>
+
+    <div class="detail-section">
+      <h4>Latência (últimas verificações)</h4>
+      <div class="history-bar">${bars || '<span style="color:var(--muted);font-size:12px">Sem histórico</span>'}</div>
+    </div>
+
+    <div class="detail-section">
+      <h4>Estatísticas</h4>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px">
+        <div style="background:var(--bg3);border-radius:8px;padding:10px">
+          <div style="font-size:10px;color:var(--muted);text-transform:uppercase">Uptime 24h</div>
+          <div style="font-size:20px;font-weight:700;color:var(--green)">${m.uptime24h !== null ? m.uptime24h+'%' : '—'}</div>
+        </div>
+        <div style="background:var(--bg3);border-radius:8px;padding:10px">
+          <div style="font-size:10px;color:var(--muted);text-transform:uppercase">Uptime 7d</div>
+          <div style="font-size:20px;font-weight:700;color:var(--blue)">${m.uptime7d !== null ? m.uptime7d+'%' : '—'}</div>
+        </div>
+        <div style="background:var(--bg3);border-radius:8px;padding:10px">
+          <div style="font-size:10px;color:var(--muted);text-transform:uppercase">Lat. média 24h</div>
+          <div style="font-size:20px;font-weight:700;color:var(--yellow)">${m.avgLatency !== null ? m.avgLatency+'ms' : '—'}</div>
+        </div>
+        <div style="background:var(--bg3);border-radius:8px;padding:10px">
+          <div style="font-size:10px;color:var(--muted);text-transform:uppercase">Intervalo</div>
+          <div style="font-size:20px;font-weight:700">${m.interval}s</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="detail-section">
+      <h4>Últimas verificações</h4>
+      ${hist.slice(-10).reverse().map(r => `
+        <div class="log-item">
+          <span class="status-dot ${r.up ? 'up' : 'down'}" style="width:8px;height:8px;flex-shrink:0"></span>
+          <span style="color:var(--muted);font-size:11px;width:120px;flex-shrink:0">${new Date(r.checkedAt).toLocaleString('pt-BR')}</span>
+          <span style="flex:1">${escHtml(r.detail || '')}</span>
+          ${r.latency ? `<span style="color:var(--yellow);font-size:11px">${r.latency}ms</span>` : ''}
+        </div>
+      `).join('') || '<p style="color:var(--muted);font-size:13px">Sem histórico</p>'}
+    </div>
+
+    <div style="margin-top:20px;display:flex;gap:8px">
+      <button class="btn" onclick="forceCheck('${id}')">↻ Verificar agora</button>
+      <button class="btn" onclick="editMonitor('${id}')">✏️ Editar</button>
+      <button class="btn btn-danger" onclick="deleteMonitor('${id}');closeDetail()">🗑 Remover</button>
+    </div>
+  `;
+  document.getElementById('detail-overlay').classList.add('open');
+}
+
+function closeDetail(e) {
+  if (!e || e.target === document.getElementById('detail-overlay')) {
+    document.getElementById('detail-overlay').classList.remove('open');
+  }
+}
+
+// ─── Modal ────────────────────────────────────────────────────────────────────
+
+function openAddModal() {
+  editingId = null;
+  document.getElementById('modal-title').textContent = 'Novo Monitor';
+  document.getElementById('m-name').value = '';
+  document.getElementById('m-type').value = 'http';
+  document.getElementById('m-url').value = '';
+  document.getElementById('m-host').value = '';
+  document.getElementById('m-port').value = '';
+  document.getElementById('m-interval').value = '60';
+  document.getElementById('m-timeout').value = '10000';
+  document.getElementById('m-expected').value = '';
+  toggleType();
+  document.getElementById('modal').classList.add('open');
+  document.getElementById('modal-alert').innerHTML = '';
+}
+
+function editMonitor(id) {
+  const m = monitors.find(x => x.id === id);
+  if (!m) return;
+  editingId = id;
+  document.getElementById('modal-title').textContent = 'Editar Monitor';
+  document.getElementById('m-name').value = m.name || '';
+  document.getElementById('m-type').value = m.type || 'http';
+  document.getElementById('m-url').value = m.url || '';
+  document.getElementById('m-host').value = m.host || '';
+  document.getElementById('m-port').value = m.port || '';
+  document.getElementById('m-interval').value = m.interval || 60;
+  document.getElementById('m-timeout').value = m.timeout || 10000;
+  document.getElementById('m-expected').value = m.expectedStatus || '';
+  toggleType();
+  document.getElementById('modal').classList.add('open');
+  document.getElementById('modal-alert').innerHTML = '';
+}
+
+function closeModal() { document.getElementById('modal').classList.remove('open'); }
+
+function toggleType() {
+  const t = document.getElementById('m-type').value;
+  const isHttp = t === 'http';
+  document.getElementById('field-url').style.display = isHttp ? '' : 'none';
+  document.getElementById('field-host').style.display = isHttp ? 'none' : '';
+  document.getElementById('field-port').style.display = isHttp ? 'none' : '';
+  document.getElementById('field-expected').style.display = isHttp ? '' : 'none';
+}
+
+async function saveMonitor() {
+  const body = {
+    name: document.getElementById('m-name').value.trim(),
+    type: document.getElementById('m-type').value,
+    url: document.getElementById('m-url').value.trim() || null,
+    host: document.getElementById('m-host').value.trim() || null,
+    port: document.getElementById('m-port').value || null,
+    interval: document.getElementById('m-interval').value,
+    timeout: document.getElementById('m-timeout').value,
+    expectedStatus: document.getElementById('m-expected').value || null
+  };
+  if (!body.name) return showModalAlert('Nome é obrigatório', 'error');
+  if (body.type === 'http' && !body.url) return showModalAlert('URL é obrigatória', 'error');
+  if (body.type === 'tcp' && (!body.host || !body.port)) return showModalAlert('Host e porta são obrigatórios', 'error');
+
+  try {
+    if (editingId) {
+      await api('PUT', `/api/monitors/${editingId}`, body);
+      showToast('Monitor atualizado com sucesso', 'success');
+    } else {
+      await api('POST', '/api/monitors', body);
+      showToast('Monitor criado com sucesso', 'success');
+    }
+    closeModal();
+    refresh();
+  } catch (e) {
+    showModalAlert(e.message, 'error');
+  }
+}
+
+async function deleteMonitor(id) {
+  const ok = await showConfirm('Remover monitor', 'Esta ação não pode ser desfeita. Deseja continuar?');
+  if (!ok) return;
+  try {
+    await api('DELETE', `/api/monitors/${id}`);
+    showToast('Monitor removido com sucesso', 'success');
+    refresh();
+  } catch (e) {
+    showToast(e.message, 'error');
+  }
+}
+
+async function forceCheck(id) {
+  try {
+    await api('POST', `/api/monitors/${id}/check`);
+    showToast('Verificação realizada', 'success', 2000);
+    refresh();
+  } catch (e) {
+    showToast(e.message, 'error');
+  }
+}
+
+// ─── Config ───────────────────────────────────────────────────────────────────
+
+async function loadConfig() {
+  const cfg = await api('GET', '/api/config');
+  document.getElementById('cfg-api-url').value = cfg.evolutionApiUrl || '';
+  document.getElementById('cfg-instance').value = cfg.evolutionInstance || '';
+  document.getElementById('cfg-apikey').value = cfg.evolutionApiKey || '';
+  document.getElementById('cfg-tg-token').value = cfg.telegramBotToken || '';
+  renderNumbers(cfg.notifyNumbers || []);
+  renderChatIds(cfg.telegramChatIds || []);
+}
+
+async function saveConfig() {
+  const body = {
+    evolutionApiUrl: document.getElementById('cfg-api-url').value.trim(),
+    evolutionInstance: document.getElementById('cfg-instance').value.trim(),
+    evolutionApiKey: document.getElementById('cfg-apikey').value.trim()
+  };
+  await api('POST', '/api/config', body);
+  showConfigAlert('Configuração WhatsApp salva!', 'success');
+}
+
+async function saveTelegramConfig() {
+  const token = document.getElementById('cfg-tg-token').value.trim();
+  await api('POST', '/api/config', { telegramBotToken: token });
+  showConfigAlert('Token do Telegram salvo!', 'success');
+}
+
+function renderNumbers(nums) {
+  const el = document.getElementById('numbers-list');
+  el.innerHTML = nums.length === 0
+    ? '<p style="color:var(--muted);font-size:13px">Nenhum número cadastrado</p>'
+    : nums.map((n, i) => `
+        <div class="number-item">
+          <span>📱 +${n}</span>
+          <button class="btn btn-sm btn-danger" onclick="removeNumber(${i})">Remover</button>
+        </div>
+      `).join('');
+}
+
+async function addNumber() {
+  const input = document.getElementById('new-number');
+  const num = input.value.replace(/\D/g, '');
+  if (!num) return;
+  const cfg = await api('GET', '/api/config');
+  const nums = [...(cfg.notifyNumbers || [])];
+  if (!nums.includes(num)) {
+    nums.push(num);
+    await api('POST', '/api/config', { notifyNumbers: nums });
+  }
+  input.value = '';
+  loadConfig();
+}
+
+async function removeNumber(idx) {
+  const cfg = await api('GET', '/api/config');
+  const nums = [...(cfg.notifyNumbers || [])];
+  nums.splice(idx, 1);
+  await api('POST', '/api/config', { notifyNumbers: nums });
+  loadConfig();
+}
+
+function renderChatIds(ids) {
+  const el = document.getElementById('tg-chatids-list');
+  if (!el) return;
+  el.innerHTML = ids.length === 0
+    ? '<p style="color:var(--muted);font-size:13px">Nenhum Chat ID cadastrado</p>'
+    : ids.map((id, i) => `
+        <div class="number-item">
+          <span>💬 ${id}</span>
+          <button class="btn btn-sm btn-danger" onclick="removeChatId(${i})">Remover</button>
+        </div>
+      `).join('');
+}
+
+async function addChatId() {
+  const input = document.getElementById('new-chatid');
+  const id = input.value.trim();
+  if (!id) return;
+  const cfg = await api('GET', '/api/config');
+  const ids = [...(cfg.telegramChatIds || [])];
+  if (!ids.includes(id)) {
+    ids.push(id);
+    await api('POST', '/api/config', { telegramChatIds: ids });
+    showToast('Chat ID adicionado', 'success', 2000);
+  }
+  input.value = '';
+  loadConfig();
+}
+
+async function removeChatId(idx) {
+  const cfg = await api('GET', '/api/config');
+  const ids = [...(cfg.telegramChatIds || [])];
+  ids.splice(idx, 1);
+  await api('POST', '/api/config', { telegramChatIds: ids });
+  loadConfig();
+}
+
+async function testTelegram() {
+  const chatId = document.getElementById('test-chatid').value.trim();
+  if (!chatId) return;
+  const res = document.getElementById('test-tg-result');
+  res.innerHTML = '<span style="color:var(--muted);font-size:13px">Enviando...</span>';
+  try {
+    await api('POST', '/api/test-telegram', { chatId });
+    res.innerHTML = '<span style="color:var(--green);font-size:13px">✅ Mensagem enviada com sucesso!</span>';
+  } catch(e) {
+    res.innerHTML = '<span style="color:var(--red);font-size:13px">❌ ' + e.message + '</span>';
+  }
+}
+
+async function testWhatsApp() {
+  const num = document.getElementById('test-number').value.replace(/\D/g, '');
+  if (!num) return;
+  const res = document.getElementById('test-result');
+  res.innerHTML = '<span style="color:var(--muted);font-size:13px">Enviando...</span>';
+  try {
+    const r = await api('POST', '/api/test-whatsapp', { number: num });
+    res.innerHTML = r.ok
+      ? '<span style="color:var(--green);font-size:13px">✅ Mensagem enviada com sucesso!</span>'
+      : `<span style="color:var(--red);font-size:13px">❌ Erro: ${r.error}</span>`;
+  } catch {
+    res.innerHTML = '<span style="color:var(--red);font-size:13px">❌ Erro na requisição</span>';
+  }
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function showModalAlert(msg, type) {
+  document.getElementById('modal-alert').innerHTML = `<div class="alert ${type}">${msg}</div>`;
+}
+
+function showConfigAlert(msg, type) {
+  document.getElementById('config-alert').innerHTML = `<div class="alert ${type}">${msg}</div>`;
+  setTimeout(() => document.getElementById('config-alert').innerHTML = '', 3000);
+}
+
+function escHtml(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function timeAgo(iso) {
+  const diff = Math.floor((Date.now() - new Date(iso)) / 1000);
+  if (diff < 60) return `${diff}s atrás`;
+  if (diff < 3600) return `${Math.floor(diff/60)}min atrás`;
+  return `${Math.floor(diff/3600)}h atrás`;
+}
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+
+bootstrap();
+</script>
+
+<!-- Toast container -->
+<div class="toast-container" id="toast-container"></div>
+
+<!-- Confirm modal -->
+<div class="confirm-overlay" id="confirm-overlay">
+  <div class="confirm-box">
+    <h3 id="confirm-title">Confirmar</h3>
+    <p id="confirm-msg">Tem certeza?</p>
+    <div class="confirm-actions">
+      <button class="btn" id="confirm-cancel" onclick="resolveConfirm(false)">Cancelar</button>
+      <button class="btn btn-danger" id="confirm-ok" onclick="resolveConfirm(true)">Remover</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- Setup overlay (primeiro acesso) -->
+<div class="auth-overlay" id="setup-overlay">
+  <div class="auth-card">
+    <h2>🔐 Configuração inicial</h2>
+    <div class="auth-subtitle">Crie a conta de administrador para proteger o painel.</div>
+    <div class="auth-error" id="setup-error"></div>
+    <form onsubmit="event.preventDefault(); doSetup();">
+      <div class="form-group">
+        <label>Usuário</label>
+        <input id="setup-username" class="form-control" autocomplete="username" placeholder="admin" required />
+      </div>
+      <div class="form-group">
+        <label>Senha (mínimo 8 caracteres)</label>
+        <input id="setup-password" type="password" class="form-control" autocomplete="new-password" required minlength="8" />
+      </div>
+      <div class="form-group">
+        <label>Confirmar senha</label>
+        <input id="setup-password2" type="password" class="form-control" autocomplete="new-password" required minlength="8" />
+      </div>
+      <button class="btn btn-primary" type="submit">Criar conta</button>
+    </form>
+    <div class="auth-hint">Guarde bem a senha. Para redefinir, apague <code>data/auth.json</code> e reinicie o container.</div>
+  </div>
+</div>
+
+<!-- Login overlay -->
+<div class="auth-overlay" id="login-overlay">
+  <div class="auth-card">
+    <h2>📡 Uptime Monitor</h2>
+    <div class="auth-subtitle">Entre com sua conta de administrador.</div>
+    <div class="auth-error" id="login-error"></div>
+    <form onsubmit="event.preventDefault(); doLogin();">
+      <div class="form-group">
+        <label>Usuário</label>
+        <input id="login-username" class="form-control" autocomplete="username" required />
+      </div>
+      <div class="form-group">
+        <label>Senha</label>
+        <input id="login-password" type="password" class="form-control" autocomplete="current-password" required />
+      </div>
+      <button class="btn btn-primary" type="submit">Entrar</button>
+    </form>
+  </div>
+</div>
+
+<!-- Change-password overlay -->
+<div class="auth-overlay" id="change-password-overlay">
+  <div class="auth-card">
+    <h2>🔑 Alterar senha</h2>
+    <div class="auth-subtitle">Informe a senha atual e a nova senha.</div>
+    <div class="auth-error" id="change-password-error"></div>
+    <form onsubmit="event.preventDefault(); doChangePassword();">
+      <div class="form-group">
+        <label>Senha atual</label>
+        <input id="cp-current" type="password" class="form-control" autocomplete="current-password" required />
+      </div>
+      <div class="form-group">
+        <label>Nova senha (mínimo 8 caracteres)</label>
+        <input id="cp-new" type="password" class="form-control" autocomplete="new-password" required minlength="8" />
+      </div>
+      <div class="form-group">
+        <label>Confirmar nova senha</label>
+        <input id="cp-new2" type="password" class="form-control" autocomplete="new-password" required minlength="8" />
+      </div>
+      <div class="confirm-actions" style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+        <button class="btn" type="button" onclick="closeChangePassword()">Cancelar</button>
+        <button class="btn btn-primary" type="submit">Salvar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+</body>
+</html>

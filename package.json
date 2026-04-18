@@ -1,0 +1,38 @@
+{
+  "name": "uptime-monitor",
+  "version": "1.1.0",
+  "description": "Monitor de uptime HTTP/TCP self-hosted com notificações por WhatsApp (Evolution API) e Telegram, interface web e autenticação de admin.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "keywords": [
+    "uptime",
+    "monitor",
+    "monitoring",
+    "whatsapp",
+    "evolution-api",
+    "telegram",
+    "self-hosted"
+  ],
+  "author": "Ricardo Pena",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RicardoPenaDev/uptime-monitor.git"
+  },
+  "bugs": {
+    "url": "https://github.com/RicardoPenaDev/uptime-monitor/issues"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "express": "^4.18.2",
+    "express-rate-limit": "^7.1.5",
+    "express-session": "^1.17.3",
+    "memorystore": "^1.6.7"
+  }
+}

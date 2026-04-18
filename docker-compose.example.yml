@@ -1,0 +1,55 @@
+# Exemplo de deploy do Uptime Monitor.
+# Copie este arquivo para `docker-compose.yml` e ajuste para seu ambiente.
+#   cp docker-compose.example.yml docker-compose.yml
+
+version: "3.8"
+
+services:
+  uptime-monitor:
+    # Build local a partir do Dockerfile do repositório:
+    build: .
+    image: uptime-monitor:latest
+    # Ou, se você já publicou a imagem em um registry:
+    # image: seu-registry/uptime-monitor:latest
+    container_name: uptime-monitor
+    restart: unless-stopped
+    environment:
+      - TZ=America/Sao_Paulo
+      - NODE_ENV=production
+    ports:
+      # Exponha direto se NÃO estiver atrás de reverse-proxy
+      - "3000:3000"
+    volumes:
+      - uptime_data:/app/data
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Alternativa: deploy atrás de Traefik com TLS automático (Let's Encrypt).
+  # Remova a seção "ports" acima e use os labels abaixo ao invés disso.
+  # ─────────────────────────────────────────────────────────────────────────────
+  #
+  # services:
+  #   uptime-monitor:
+  #     build: .
+  #     image: uptime-monitor:latest
+  #     restart: unless-stopped
+  #     environment:
+  #       - TZ=America/Sao_Paulo
+  #       - NODE_ENV=production
+  #     volumes:
+  #       - uptime_data:/app/data
+  #     networks:
+  #       - proxy
+  #     labels:
+  #       - "traefik.enable=true"
+  #       - "traefik.docker.network=proxy"
+  #       - "traefik.http.routers.uptime-monitor.rule=Host(`uptime.seu-dominio.com`)"
+  #       - "traefik.http.routers.uptime-monitor.entrypoints=websecure"
+  #       - "traefik.http.routers.uptime-monitor.tls=true"
+  #       - "traefik.http.routers.uptime-monitor.tls.certresolver=letsencryptresolver"
+  #       - "traefik.http.services.uptime-monitor.loadbalancer.server.port=3000"
+  # networks:
+  #   proxy:
+  #     external: true
+
+volumes:
+  uptime_data:
