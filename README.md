@@ -10,6 +10,10 @@ e **Telegram**, histórico de latência e autenticação de administrador.
 
 ---
 
+![Dashboard](./screenshot/uptime.png)
+
+---
+
 ## ✨ Funcionalidades
 
 - ✅ Monitoramento **HTTP/HTTPS** com validação de status code
